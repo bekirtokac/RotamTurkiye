@@ -1,0 +1,2 @@
+C:/Users/bekir/Desktop/local_traveler_app-main/android/app/.cxx/Debug/1h2p5e40/x86/CMakeFiles/edit_cache.dir
+C:/Users/bekir/Desktop/local_traveler_app-main/android/app/.cxx/Debug/1h2p5e40/x86/CMakeFiles/rebuild_cache.dir

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "649915431278",
+    "project_id": "rotamturkiye-57488",
+    "storage_bucket": "rotamturkiye-57488.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:649915431278:android:7233db07c79563e44ce97f",
+        "android_client_info": {
+          "package_name": "com.example.rotam_turkiye"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCAYW-eD_qzG0lnmnqlysCmb14UfhzYM4c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

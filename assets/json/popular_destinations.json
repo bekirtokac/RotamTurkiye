@@ -1,0 +1,52 @@
+[
+  {
+    "name": "İstanbul",
+    "description": "Tarihi ve kültürel zenginlikleriyle ünlü Türkiye'nin en büyük şehri.",
+    "image": "https://images.pexels.com/photos/3684396/pexels-photo-3684396.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Ankara",
+    "description": "Türkiye'nin başkenti ve en kalabalık ikinci şehri.",
+    "image": "https://images.pexels.com/photos/16886176/pexels-photo-16886176/free-photo-of-kent-sehir-insanlar-kent-simgesi.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "İzmir",
+    "description": "Ege'nin incisi olarak bilinen, Türkiye'nin üçüncü büyük şehri.",
+    "image": "https://images.pexels.com/photos/15159754/pexels-photo-15159754/free-photo-of-bir-nevi-kusbakisi.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Antalya",
+    "description": "Akdeniz'in turizm başkenti ve Türkiye'nin en çok ziyaret edilen şehri.",
+    "image": "https://images.pexels.com/photos/3569950/pexels-photo-3569950.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Bodrum",
+    "description": "Türkiye'nin en popüler tatil bölgelerinden biri olan Ege'nin incisi Bodrum.",
+    "image": "https://images.pexels.com/photos/7849160/pexels-photo-7849160.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Trabzon",
+    "description": "Karadeniz'in incisi, doğal güzellikleriyle ünlü bir şehir.",
+    "image": "https://images.pexels.com/photos/8190433/pexels-photo-8190433.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Bursa",
+    "description": "Tarih boyunca önemli birçok medeniyete ev sahipliği yapmış, yeşilin ve tarihin şehri.",
+    "image": "https://images.pexels.com/photos/15664785/pexels-photo-15664785/free-photo-of-sanat-renkli-rengarenk-tavan.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Mardin",
+    "description": "Tarihi dokusu ve mimarisiyle ünlü, Türkiye'nin güneydoğusunda yer alan şehir.",
+    "image": "https://images.pexels.com/photos/8204557/pexels-photo-8204557.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  },
+  {
+    "name": "Nevşehir",
+    "description": "Kapadokya'nın kalbi olan, eşsiz doğal güzelliklere sahip bir şehir.",
+    "image": "https://images.pexels.com/photos/13522405/pexels-photo-13522405.jpeg"
+  },
+  {
+    "name": "Edirne",
+    "description": "Osmanlı İmparatorluğu'nun başkenti ve tarih boyunca önemli birçok medeniyete ev sahipliği yapmış bir şehir.",
+    "image": "https://images.pexels.com/photos/4460081/pexels-photo-4460081.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1"
+  }
+]
