@@ -4,4 +4,5 @@ abstract class DBBase {
   Future<bool> saveUser(UserModel user);
   Future<UserModel> readUser(String id);
   Future<bool> saveUserDetails(String userId, String name, String city);
+  Future<bool> updatePhotoUrl(String userId, String photoUrl);
 }

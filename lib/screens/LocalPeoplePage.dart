@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:rotam_turkiye/gemini_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class LocalPeoplePage extends StatefulWidget {

@@ -18,7 +18,7 @@ class CustomInput extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final String? defaultValue; // Yeni parametre
 
-  CustomInput({
+  const CustomInput({super.key, 
     required this.hintText,
     required this.isPassword,
     this.isNumber,

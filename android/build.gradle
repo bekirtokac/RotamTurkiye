@@ -1,19 +1,4 @@
-buildscript {
-    // 1. Kotlin versiyonunu 2.1.0'a yükseltiyoruz
-    ext.kotlin_version = '2.1.0'
-
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        // 2. Android Gradle Plugin (AGP) versiyonunu 8.6.0 yapıyoruz
-        classpath 'com.android.tools.build:gradle:8.6.0'
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath 'com.google.gms:google-services:4.4.2'
-    }
-}
+// AGP ve Kotlin sürümleri settings.gradle içindeki plugins bloğundan yönetilir.
 
 allprojects {
     repositories {
@@ -24,9 +9,15 @@ allprojects {
 
 rootProject.buildDir = '../build'
 
-subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-    project.evaluationDependsOn(':app')
+subprojects { subproject ->
+    subproject.buildDir = "${rootProject.buildDir}/${subproject.name}"
+    subproject.evaluationDependsOn(':app')
+
+    subproject.plugins.withId("com.android.library") {
+        subproject.android {
+            compileSdk 36
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

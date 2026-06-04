@@ -50,7 +50,7 @@ class _LoginPageState extends State<LoginPage> {
           await userModel.signInWithEmailAndPassword(email, password);
 
       if (loginUser != null) {
-        print("Oturum açan kullanıcı: " + loginUser.id.toString());
+        print("Oturum açan kullanıcı: ${loginUser.id}");
 
         // HomePage'e yönlendirme
         Navigator.of(context).pushReplacement(

@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:rotam_turkiye/screens/PopularDestinationsPage.dart';
 import 'package:rotam_turkiye/screens/HiddenGemsPage.dart';
@@ -6,7 +5,7 @@ import 'package:rotam_turkiye/widgets/CustomInput.dart';
 import 'package:rotam_turkiye/widgets/DiscoverItem.dart';
 
 class SearchPage extends StatelessWidget {
-  const SearchPage({Key? key});
+  const SearchPage({super.key});
 
   @override
   Widget build(BuildContext context) {

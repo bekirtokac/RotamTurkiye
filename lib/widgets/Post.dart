@@ -7,12 +7,12 @@ class Post extends StatefulWidget {
   final String sharedLocation;
 
   const Post({
-    Key? key,
+    super.key,
     required this.imageUrl,
     required this.profileImageUrl,
     required this.username,
     required this.sharedLocation,
-  }) : super(key: key);
+  });
 
   @override
   _PostState createState() => _PostState();

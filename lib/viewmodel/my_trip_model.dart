@@ -9,9 +9,9 @@ import 'package:rotam_turkiye/services/trip_base.dart';
 enum ViewState { Idle, Busy }
 
 class MyTripModel with ChangeNotifier implements TripBase {
-  FirestoreDBService _firestoreDBService = locator<FirestoreDBService>();
+  final FirestoreDBService _firestoreDBService = locator<FirestoreDBService>();
   ViewState _state = ViewState.Idle;
-  TripRepository _tripRepository = locator<TripRepository>();
+  final TripRepository _tripRepository = locator<TripRepository>();
 
   TripModel? _trip;
 

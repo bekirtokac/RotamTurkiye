@@ -9,7 +9,7 @@ import 'package:rotam_turkiye/widgets/BottomNavBar.dart';
 
 class HomePage extends StatefulWidget {
   final UserModel? userModel;
-  const HomePage({Key? key, required this.userModel});
+  const HomePage({super.key, required this.userModel});
 
   @override
   State<HomePage> createState() => _HomePageState();

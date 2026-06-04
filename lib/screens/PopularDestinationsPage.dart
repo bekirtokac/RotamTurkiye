@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class PopularDestinationsPage extends StatelessWidget {
+  const PopularDestinationsPage({super.key});
+
   Future<List<dynamic>> _loadDestinations() async {
     try {
       String data =

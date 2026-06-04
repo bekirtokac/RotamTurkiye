@@ -3,12 +3,12 @@ class UserModel {
   final String name;
   final String email;
   final String city;
-  String profileImage;
+  String photoUrl;
   int score;
   int ticket;
 
   UserModel({
-    this.profileImage = "./assets/icons/person.png",
+    this.photoUrl = "",
     this.score = 0,
     this.ticket = 0,
     required this.id,
@@ -23,7 +23,9 @@ class UserModel {
       name: map['name'],
       email: map['email'],
       city: map['city'],
-      profileImage: map['profileImage'] ?? "./assets/icons/person.png",
+      photoUrl: map['photoUrl'] ??
+          map['profileImage'] ??
+          "",
       score: map['score'] ?? 0,
       ticket: map['ticket'] ?? 0,
     );
@@ -35,7 +37,7 @@ class UserModel {
       'name': name,
       'email': email,
       'city': city,
-      'profileImage': profileImage,
+      'photoUrl': photoUrl,
       'score': score,
       'ticket': ticket,
     };

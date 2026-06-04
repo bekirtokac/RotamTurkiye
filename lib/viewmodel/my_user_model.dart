@@ -1,16 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:rotam_turkiye/locator.dart';
 import 'package:rotam_turkiye/model/UserModel.dart';
 import 'package:rotam_turkiye/repository/user_repository.dart';
 import 'package:rotam_turkiye/services/auth_base.dart';
+import 'package:rotam_turkiye/services/firebase_storage_service.dart';
 import 'package:rotam_turkiye/services/firestore_db_service.dart';
 
 enum ViewState { Idle, Busy }
 
 class MyUserModel with ChangeNotifier implements AuthBase {
-  FirestoreDBService _firestoreDBService = locator<FirestoreDBService>();
+  final FirestoreDBService _firestoreDBService = locator<FirestoreDBService>();
+  final FirebaseStorageService _storageService =
+      locator<FirebaseStorageService>();
   ViewState _state = ViewState.Idle;
-  UserRepository _userRepository = locator<UserRepository>();
+  final UserRepository _userRepository = locator<UserRepository>();
   UserModel? _user;
 
   UserModel? get user => _user;
@@ -86,13 +91,69 @@ class MyUserModel with ChangeNotifier implements AuthBase {
     }
   }
 
+  Future<bool> updateProfilePhoto(File imageFile) async {
+    if (_user == null) {
+      return false;
+    }
+
+    try {
+      state = ViewState.Busy;
+      final downloadUrl =
+          await _storageService.uploadProfileImage(_user!.id, imageFile);
+
+      final isSaved =
+          await _firestoreDBService.updatePhotoUrl(_user!.id, downloadUrl);
+      if (!isSaved) {
+        return false;
+      }
+
+      _user = await _firestoreDBService.readUser(_user!.id);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      print("Profil fotoğrafı güncellenirken hata oluştu: $e");
+      return false;
+    } finally {
+      state = ViewState.Idle;
+    }
+  }
+
   Future<bool> saveUserDetails(String userId, String name, String city) async {
     try {
-      await _firestoreDBService.saveUserDetails(userId, name, city);
+      state = ViewState.Busy;
+      final bool isSaved =
+          await _firestoreDBService.saveUserDetails(userId, name, city);
+
+      if (!isSaved) {
+        return false;
+      }
+
+      _user = await _firestoreDBService.readUser(userId);
+      notifyListeners();
       return true;
     } catch (e) {
       print("Kullanıcı bilgileri kaydedilirken hata oluştu: $e");
       return false;
+    } finally {
+      state = ViewState.Idle;
+    }
+  }
+
+  Future<bool> updateUserScore(int newScore) async {
+    if (_user == null) return false;
+    try {
+      final success =
+          await _firestoreDBService.updateUserScore(_user!.id, newScore);
+      if (success) {
+        _user!.score = newScore;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      print("Kullanıcı puanı ViewModel'de güncellenirken hata oluştu: $e");
+      return false;
     }
   }
 }
+

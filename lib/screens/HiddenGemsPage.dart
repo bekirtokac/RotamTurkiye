@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class HiddenGemsPage extends StatelessWidget {
+  const HiddenGemsPage({super.key});
+
   Future<List<dynamic>> _loadHiddenGems() async {
     try {
       String data = await rootBundle.loadString('assets/json/hidden_gems.json');

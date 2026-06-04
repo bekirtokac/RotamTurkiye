@@ -29,15 +29,28 @@ class FirestoreDBService implements DBBase, TripBase {
   }
 
   @override
-  Future<UserModel> readUser(String id) async {
-    DocumentSnapshot _readingUser =
-        await _firebaseDB.collection("users").doc(id).get();
-    Map<String, dynamic>? _readingUserInfo =
-        _readingUser.data() as Map<String, dynamic>?;
+  Future<bool> updatePhotoUrl(String userId, String photoUrl) async {
+    try {
+      await _firebaseDB.collection("users").doc(userId).update({
+        'photoUrl': photoUrl,
+      });
+      return true;
+    } catch (e) {
+      print("Profil fotoğrafı URL kaydedilirken hata oluştu: $e");
+      return false;
+    }
+  }
 
-    if (_readingUserInfo != null) {
-      print("okunana user: ${_readingUserInfo.toString()}");
-      return UserModel.fromMap(_readingUserInfo, id);
+  @override
+  Future<UserModel> readUser(String id) async {
+    DocumentSnapshot readingUser =
+        await _firebaseDB.collection("users").doc(id).get();
+    Map<String, dynamic>? readingUserInfo =
+        readingUser.data() as Map<String, dynamic>?;
+
+    if (readingUserInfo != null) {
+      print("okunana user: ${readingUserInfo.toString()}");
+      return UserModel.fromMap(readingUserInfo, id);
     } else {
       throw Exception("User not found!");
     }
@@ -97,4 +110,101 @@ class FirestoreDBService implements DBBase, TripBase {
       return null;
     }
   }
+
+  /// Kullanıcının visited_cities koleksiyonunu stream olarak dinler.
+  Stream<QuerySnapshot> getVisitedCities(String userId) {
+    return _firebaseDB
+        .collection("users")
+        .doc(userId)
+        .collection("visited_cities")
+        .snapshots();
+  }
+
+  /// Profil sayfasından tek bir gezilen şehir kaydı ekler.
+  Future<bool> addVisitedCity(
+      String userId, String city, int spentDay, String date) async {
+    try {
+      await _firebaseDB
+          .collection("users")
+          .doc(userId)
+          .collection("visited_cities")
+          .doc()
+          .set({
+        'city': city,
+        'spent_day': spentDay,
+        'date': date,
+      });
+      return true;
+    } catch (e) {
+      print("Gezilen şehir eklenirken hata oluştu: $e");
+      return false;
+    }
+  }
+
+  /// Gezilen şehir kaydını siler.
+  Future<bool> deleteVisitedCity(String userId, String docId) async {
+    try {
+      await _firebaseDB
+          .collection("users")
+          .doc(userId)
+          .collection("visited_cities")
+          .doc(docId)
+          .delete();
+      return true;
+    } catch (e) {
+      print("Gezilen şehir silinirken hata oluştu: $e");
+      return false;
+    }
+  }
+
+  /// Gezilen şehir/plan kaydını günceller.
+  Future<bool> updateVisitedCity(
+      String userId, String docId, String city, int spentDay, String date) async {
+    try {
+      await _firebaseDB
+          .collection("users")
+          .doc(userId)
+          .collection("visited_cities")
+          .doc(docId)
+          .update({
+        'city': city,
+        'spent_day': spentDay,
+        'date': date,
+      });
+      return true;
+    } catch (e) {
+      print("Seyahat planı güncellenirken hata oluştu: $e");
+      return false;
+    }
+  }
+
+  /// Kullanıcının toplam puanını (score) Firestore'da günceller.
+  Future<bool> updateUserScore(String userId, int score) async {
+    try {
+      await _firebaseDB.collection("users").doc(userId).update({
+        'score': score,
+      });
+      return true;
+    } catch (e) {
+      print("Kullanıcı puanı güncellenirken hata oluştu: $e");
+      return false;
+    }
+  }
+
+  /// Verilen puana göre kullanıcının tüm veritabanında kaçıncı sırada olduğunu dinamik olarak hesaplar.
+  Future<int> getUserRank(int score) async {
+    try {
+      final snapshot = await _firebaseDB
+          .collection("users")
+          .where("score", isGreaterThan: score)
+          .count()
+          .get();
+      return (snapshot.count ?? 0) + 1;
+    } catch (e) {
+      print("Sıralama hesaplanırken hata oluştu: $e");
+      return 1;
+    }
+  }
 }
+
+

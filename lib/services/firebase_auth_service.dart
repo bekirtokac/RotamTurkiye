@@ -7,7 +7,7 @@ class FirebaseAuthService implements AuthBase {
   @override
   Future<UserModel?> currentUser() async {
     try {
-      final User? currentUser = await _firebaseAuth.currentUser;
+      final User? currentUser = _firebaseAuth.currentUser;
       if (currentUser == null) {
         throw Exception('Kullanıcı bulunamadı.'); // Throw exception if no user
       } else {

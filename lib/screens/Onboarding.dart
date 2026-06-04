@@ -3,6 +3,8 @@ import 'package:rotam_turkiye/model/onboarding_content_model.dart';
 import 'package:rotam_turkiye/screens/LoginPage.dart'; // LoginPage import edildi
 
 class Onboarding extends StatefulWidget {
+  const Onboarding({super.key});
+
   @override
   _OnboardingState createState() => _OnboardingState();
 }
@@ -88,14 +90,6 @@ class _OnboardingState extends State<Onboarding> {
             margin: EdgeInsets.all(40),
             width: double.infinity,
             child: ElevatedButton(
-              child: Text(
-                currentIndex == contents.length - 1
-                    ? "Hadi Başlayalım!"
-                    : "İleri",
-                style: TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold), // Siyah metin rengi
-              ),
               onPressed: () {
                 if (currentIndex == contents.length - 1) {
                   Navigator.push(
@@ -115,6 +109,14 @@ class _OnboardingState extends State<Onboarding> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
+              ),
+              child: Text(
+                currentIndex == contents.length - 1
+                    ? "Hadi Başlayalım!"
+                    : "İleri",
+                style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold), // Siyah metin rengi
               ),
             ),
           ),

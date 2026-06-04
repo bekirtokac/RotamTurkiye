@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:rotam_turkiye/model/UserModel.dart';
-import 'package:rotam_turkiye/model/trip_model.dart';
 import 'package:rotam_turkiye/screens/LocalPeoplePage.dart';
 import 'package:rotam_turkiye/viewmodel/my_trip_model.dart';
 import 'package:rotam_turkiye/viewmodel/my_user_model.dart';

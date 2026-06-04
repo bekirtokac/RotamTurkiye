@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rotam_turkiye/screens/HomePage.dart';
 import 'package:rotam_turkiye/screens/Onboarding.dart';
-import 'package:rotam_turkiye/screens/SignupPage.dart';
 import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
 import 'package:provider/provider.dart';
 

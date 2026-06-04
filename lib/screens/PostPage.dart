@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:rotam_turkiye/screens/CreatePost.dart';
+import 'package:rotam_turkiye/screens/LeaderboardPage.dart';
 import 'package:rotam_turkiye/widgets/Post.dart';
 
 class PostPage extends StatelessWidget {
@@ -17,6 +18,20 @@ class PostPage extends StatelessWidget {
         ),
         actions: [
           IconButton(
+            icon: const Icon(
+              Icons.filter_hdr_rounded,
+              size: 30,
+              color: Colors.white,
+            ),
+            tooltip: "Zirve 100",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LeaderboardPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: Icon(
               size: 40,
               Icons.add,
@@ -31,6 +46,7 @@ class PostPage extends StatelessWidget {
           ),
         ],
       ),
+
       body: const Column(
         children: [
           Post(

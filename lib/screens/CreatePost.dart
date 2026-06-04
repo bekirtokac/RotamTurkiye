@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:rotam_turkiye/widgets/CustomInput.dart';
 
 class CreatePost extends StatelessWidget {
-  const CreatePost({Key? key}) : super(key: key);
+  const CreatePost({super.key});
 
   @override
   Widget build(BuildContext context) {

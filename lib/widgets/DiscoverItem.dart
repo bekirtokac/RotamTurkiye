@@ -6,11 +6,11 @@ class DiscoverItem extends StatelessWidget {
   final VoidCallback onTap;
 
   const DiscoverItem({
-    Key? key,
+    super.key,
     required this.iconPath,
     required this.title,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

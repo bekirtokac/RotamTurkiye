@@ -9,6 +9,8 @@ import 'package:rotam_turkiye/screens/LoginPage.dart';
 import 'package:provider/provider.dart';
 
 class SignupPage extends StatefulWidget {
+  const SignupPage({super.key});
+
   @override
   _SignupPageState createState() => _SignupPageState();
 }
@@ -30,7 +32,7 @@ class _SignupPageState extends State<SignupPage> {
   }
 
   void onConnect() async {
-    final _userModel = Provider.of<MyUserModel>(context, listen: false);
+    final userModel = Provider.of<MyUserModel>(context, listen: false);
 
     String email = emailController.text;
     String password = passwordController.text;
@@ -58,16 +60,14 @@ class _SignupPageState extends State<SignupPage> {
     print("İsim: ${nameController.text}\n");
     print("Şehir: $_selectedCity\n");
 
-    UserModel? _creatingUser =
-        await _userModel.createUserWithEmailAndPassword(email, password);
+    UserModel? creatingUser =
+        await userModel.createUserWithEmailAndPassword(email, password);
 
-    if (_creatingUser != null) {
-      print("Kayıt olan kullanıcı: " +
-          _creatingUser.id.toString() +
-          "isim: ${_creatingUser.name}");
+    if (creatingUser != null) {
+      print("Kayıt olan kullanıcı: ${creatingUser.id}isim: ${creatingUser.name}");
 
       bool success =
-          await _userModel.saveUserDetails(_creatingUser.id, name, city!);
+          await userModel.saveUserDetails(creatingUser.id, name, city);
 
       if (success) {
         print("Kullanıcı bilgileri başarıyla kaydedildi.");
@@ -75,7 +75,7 @@ class _SignupPageState extends State<SignupPage> {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(
               builder: (context) => HomePage(
-                userModel: _creatingUser,
+                userModel: creatingUser,
               ),
             ),
           );
@@ -104,7 +104,7 @@ class _SignupPageState extends State<SignupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final _userModel = Provider.of<MyUserModel>(context);
+    final userModel = Provider.of<MyUserModel>(context);
     return Scaffold(
       resizeToAvoidBottomInset: false,
       backgroundColor: Colors.black,
