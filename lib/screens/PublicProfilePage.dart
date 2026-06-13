@@ -1,7 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:rotam_turkiye/model/UserModel.dart';
+import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
+import 'package:rotam_turkiye/screens/ChatPage.dart';
 import 'dart:math' as math;
+
 
 class PublicProfilePage extends StatefulWidget {
   final UserModel user;
@@ -281,49 +285,15 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
             _buildProfileImage(photoUrl: widget.user.photoUrl, radius: 64),
             const SizedBox(height: 20),
 
-            // İsim & Zirve Rank Rozeti
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Text(
-                  widget.user.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (_userRank != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF1C40F), Color(0xFFF39C12)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFF39C12).withValues(alpha: 0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      "Zirve #$_userRank",
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
+            // İsim
+            Text(
+              widget.user.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-
             const SizedBox(height: 8),
             // Şehir
             Text(
@@ -333,36 +303,105 @@ class _PublicProfilePageState extends State<PublicProfilePage> {
                 fontSize: 18,
               ),
             ),
-
-            const SizedBox(height: 20),
-            // Mesaj Gönder Button
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+            if (_userRank != null) ...[
+              const SizedBox(height: 12),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFF1C40F), Color(0xFFF39C12)],
                     ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFF39C12).withValues(alpha: 0.3),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
-                  onPressed: () {
-                    // Mesaj göndermesi için caller'a true dönüyoruz
-                    Navigator.of(context).pop(true);
-                  },
-                  icon: const Icon(Icons.send_rounded),
-                  label: const Text(
-                    "Mesaj Gönder",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.emoji_events_rounded,
+                          color: Colors.black, size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        "Zirve #$_userRank",
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
+            ],
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            if (widget.user.id != Provider.of<MyUserModel>(context, listen: false).user?.id) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: () async {
+                      final userModel = Provider.of<MyUserModel>(context, listen: false);
+                      final currentUser = userModel.user;
+                      if (currentUser != null) {
+                        final chatId = currentUser.id.compareTo(widget.user.id) < 0
+                            ? '${currentUser.id}_${widget.user.id}'
+                            : '${widget.user.id}_${currentUser.id}';
+
+                        await FirebaseFirestore.instance
+                            .collection('chats')
+                            .doc(chatId)
+                            .set({
+                          'users': [currentUser.id, widget.user.id],
+                          'user1': currentUser.id.compareTo(widget.user.id) < 0
+                              ? currentUser.id
+                              : widget.user.id,
+                          'user2': currentUser.id.compareTo(widget.user.id) < 0
+                              ? widget.user.id
+                              : currentUser.id,
+                          'lastMessage': '',
+                          'lastMessageSender': currentUser.id,
+                          'lastMessageTime': FieldValue.serverTimestamp(),
+                          'isRead_${currentUser.id}': true,
+                          'isRead_${widget.user.id}': true,
+                        }, SetOptions(merge: true));
+                      }
+
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatPage(receiverUser: widget.user),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.send_rounded),
+                    label: const Text(
+                      "Mesaj Gönder",
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // İstatistik Kartları (Puanlar ve Gezilen Şehir)
             Padding(

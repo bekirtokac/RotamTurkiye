@@ -1,6 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'dart:math' as math;
 import 'package:rotam_turkiye/model/UserModel.dart';
+import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
 import 'package:rotam_turkiye/screens/ChatPage.dart';
 import 'package:rotam_turkiye/screens/PublicProfilePage.dart';
 import 'package:rotam_turkiye/widgets/CustomInput.dart';
@@ -21,8 +24,10 @@ class _MessagesPageState extends State<MessagesPage>
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   List<UserModel> _gezginler = []; // 25 random preseeded users
-  List<UserModel> _messagesContacts = []; // 10 random preseeded users from the 25 + extraChats
+  Map<String, UserModel> _preseedUserMap = {}; // map of user details
   bool _isLoading = true;
+  UserModel? _currentUser;
+  bool _didFetchContacts = false;
 
   // Seyahat temalı mock son mesajlar
   final List<String> _mockMessages = [
@@ -42,25 +47,39 @@ class _MessagesPageState extends State<MessagesPage>
     "Bir sonraki seyahatin ne zaman?"
   ];
 
-  // Uydurma mesaj saatleri
-  final List<String> _mockTimes = [
-    "14:32", "Dün", "10:15", "18:45", "Salı", "09:05", "Dün", "16:20", "Pazartesi", "12:00"
-  ];
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = "";
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _fetchContacts();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userModel = Provider.of<MyUserModel>(context);
+    final user = userModel.user;
+    if (user != null && _currentUser != user) {
+      _currentUser = user;
+      if (!_didFetchContacts) {
+        _didFetchContacts = true;
+        _fetchContacts();
+      }
+    }
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchContacts() async {
+    final currentUser = _currentUser;
+    if (currentUser == null) return;
     try {
       // Sadece 'preseed_user_' ile başlayan temiz havuzumuzu çekiyoruz
       final querySnapshot = await _firestore
@@ -73,26 +92,27 @@ class _MessagesPageState extends State<MessagesPage>
           .toList();
 
       if (allPreseeds.isNotEmpty) {
+        _preseedUserMap = {for (var u in allPreseeds) u.id: u};
+
         // Havuzu karıştırıp rastgele 25 kişi seçiyoruz (Gezginler)
         allPreseeds.shuffle();
         final List<UserModel> selected25 = allPreseeds.take(25).toList();
 
-        // Bu 25 kişi içerisinden rastgele 10 kişi seçiyoruz (Mesajlar)
-        final List<UserModel> copy25 = List.from(selected25)..shuffle();
-        final List<UserModel> selected10 = copy25.take(10).toList();
+        // Firestore'da bu kullanıcının aktif sohbeti var mı kontrol edelim
+        final chatsSnapshot = await _firestore
+            .collection('chats')
+            .where('users', arrayContains: currentUser.id)
+            .get();
 
-        // MessagesPage.extraChats elemanlarını en başa ekleyip, selected10 ile birleştiriyoruz (mükerrer olmayacak şekilde)
-        final List<UserModel> mergedChats = [];
-        mergedChats.addAll(MessagesPage.extraChats);
-        for (var user in selected10) {
-          if (!mergedChats.any((c) => c.id == user.id)) {
-            mergedChats.add(user);
-          }
+        if (chatsSnapshot.docs.isEmpty) {
+          // Hiç sohbet yoksa, random 25 gezginden 10 tanesini seçip Firestore'da sohbet ve mock mesajları oluşturalım (Preseed)
+          final List<UserModel> copy25 = List.from(selected25)..shuffle();
+          final List<UserModel> selected10 = copy25.take(10).toList();
+          await _preseedChatsInFirestore(selected10, currentUser.id);
         }
 
         setState(() {
           _gezginler = selected25;
-          _messagesContacts = mergedChats;
           _isLoading = false;
         });
       } else {
@@ -101,11 +121,67 @@ class _MessagesPageState extends State<MessagesPage>
         });
       }
     } catch (e) {
-      print("Kontaklar yüklenirken hata oluştu: $e");
+      debugPrint("Kontaklar yuklenirken hata olustu: $e");
       setState(() {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _preseedChatsInFirestore(List<UserModel> selectedUsers, String currentUserId) async {
+    final batch = _firestore.batch();
+    final rand = math.Random();
+    
+    for (int i = 0; i < selectedUsers.length; i++) {
+      final otherUser = selectedUsers[i];
+      final chatId = currentUserId.compareTo(otherUser.id) < 0 
+          ? '${currentUserId}_${otherUser.id}' 
+          : '${otherUser.id}_$currentUserId';
+          
+      final mockMsg = _mockMessages[i % _mockMessages.length];
+      
+      // 1. Sohbet belgesini oluştur
+      final chatDocRef = _firestore.collection('chats').doc(chatId);
+      batch.set(chatDocRef, {
+        'users': [currentUserId, otherUser.id],
+        'user1': currentUserId.compareTo(otherUser.id) < 0 ? currentUserId : otherUser.id,
+        'user2': currentUserId.compareTo(otherUser.id) < 0 ? otherUser.id : currentUserId,
+        'lastMessage': mockMsg,
+        'lastMessageSender': otherUser.id,
+        'lastMessageTime': Timestamp.fromDate(DateTime.now().subtract(Duration(hours: i * 2, minutes: rand.nextInt(50)))),
+        'isRead_$currentUserId': i % 3 == 0 ? false : true, // Bazılarını okunmamış yapalım
+        'isRead_${otherUser.id}': true,
+      });
+      
+      // 2. chats/{chatId}/messages altına mock mesaj geçmişi ekle (3 mesaj)
+      final messagesCol = chatDocRef.collection('messages');
+      
+      // Mesaj 1
+      batch.set(messagesCol.doc(), {
+        'senderId': otherUser.id,
+        'receiverId': currentUserId,
+        'message': 'Selam! Rotam Türkiye\'de profilini gördüm.',
+        'timestamp': Timestamp.fromDate(DateTime.now().subtract(Duration(hours: i * 2 + 1))),
+      });
+      
+      // Mesaj 2
+      batch.set(messagesCol.doc(), {
+        'senderId': currentUserId,
+        'receiverId': otherUser.id,
+        'message': 'Merhaba! Evet, ben de yeni katıldım. Memnun oldum.',
+        'timestamp': Timestamp.fromDate(DateTime.now().subtract(Duration(hours: i * 2, minutes: 30))),
+      });
+      
+      // Mesaj 3 (Son mesaj)
+      batch.set(messagesCol.doc(), {
+        'senderId': otherUser.id,
+        'receiverId': currentUserId,
+        'message': mockMsg,
+        'timestamp': Timestamp.fromDate(DateTime.now().subtract(Duration(hours: i * 2, minutes: 10))),
+      });
+    }
+    
+    await batch.commit();
   }
 
   // Profil Fotoğrafı Fallback/Loading Widget'ı
@@ -189,55 +265,145 @@ class _MessagesPageState extends State<MessagesPage>
   }
 
   // Sohbeti Başlatma ve Mesajlar Tabına Aktarma Mantığı
-  void _startChatWithUser(UserModel user) {
-    // 1. extraChats havuzuna ekle
-    if (!MessagesPage.extraChats.any((c) => c.id == user.id)) {
-      MessagesPage.extraChats.insert(0, user);
+  Future<void> _startChatWithUser(UserModel user) async {
+    final currentUser = _currentUser;
+    if (currentUser == null) return;
+    
+    final chatId = currentUser.id.compareTo(user.id) < 0
+        ? '${currentUser.id}_${user.id}'
+        : '${user.id}_${currentUser.id}';
+    
+    try {
+      // Sohbet belgesini Firestore'da başlat
+      await _firestore.collection('chats').doc(chatId).set({
+        'users': [currentUser.id, user.id],
+        'user1': currentUser.id.compareTo(user.id) < 0 ? currentUser.id : user.id,
+        'user2': currentUser.id.compareTo(user.id) < 0 ? user.id : currentUser.id,
+        'lastMessage': '',
+        'lastMessageSender': currentUser.id,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'isRead_${currentUser.id}': true,
+        'isRead_${user.id}': true,
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint("Sohbet baslatilirken hata olustu: $e");
     }
 
-    // 2. Aktif sohbetler listesinde yoksa en başa ekle ve state güncelle
-    if (!_messagesContacts.any((c) => c.id == user.id)) {
-      setState(() {
-        _messagesContacts.insert(0, user);
-      });
-    }
-
-    // 3. TabController'ı Mesajlar (index 0) sekmesine geçir
     _tabController.index = 0;
 
-    // 4. Sohbet sayfasını aç
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatPage(personName: user.name),
-      ),
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatPage(receiverUser: user),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteChat(String chatId) async {
+    try {
+      final messagesSnapshot = await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .get();
+      
+      final batch = _firestore.batch();
+      for (var doc in messagesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      batch.delete(_firestore.collection('chats').doc(chatId));
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Sohbet silindi."),
+            backgroundColor: Colors.redAccent,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Sohbet silinirken hata olustu: $e");
+    }
+  }
+
+  Future<bool?> _showDeleteConfirmationDialog(BuildContext context, String chatId) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: const Text(
+            "Sohbeti Sil",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: const Text(
+            "Bu kişiyle olan tüm sohbet geçmişini silmek istediğinize emin misiniz?",
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text("İptal", style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text("Sil"),
+            ),
+          ],
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = _currentUser;
+    if (currentUser == null || _isLoading) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(
+          child: CircularProgressIndicator(color: Colors.redAccent),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
           "Kontaktların",
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: Colors.black, // AppBar arka planını siyah yap
+        backgroundColor: Colors.black,
       ),
-      backgroundColor: Colors.black, // Sayfa arka planını siyah yap
+      backgroundColor: Colors.black,
       body: Column(
         children: [
           CustomInput(
+            controller: _searchController,
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value;
+              });
+            },
             hintText: "Kontaktların içinde ara",
             leftIconName: "./assets/icons/search.png",
             rightIconName: "./assets/icons/menu.png",
             isPassword: false,
             inputType: InputType.TextField,
           ),
-          const SizedBox(height: 10), // Aralarına bir boşluk ekleyelim
+          const SizedBox(height: 10),
           TabBar(
             controller: _tabController,
-            tabs: [
+            tabs: const [
               Tab(
                 child: Align(
                   alignment: Alignment.center,
@@ -258,37 +424,165 @@ class _MessagesPageState extends State<MessagesPage>
               ),
             ],
           ),
-
-          const SizedBox(height: 10), // Aralarına bir boşluk ekleyelim
+          const SizedBox(height: 10),
           Expanded(
             child: TabBarView(
               controller: _tabController,
               children: [
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
-                    : _messagesContacts.isEmpty
-                        ? const Center(child: Text("Mesaj bulunamadı", style: TextStyle(color: Colors.white54)))
-                        : ListView.builder(
-                            itemCount: _messagesContacts.length,
-                            itemBuilder: (context, index) {
-                              return _buildMessageCard(context, _messagesContacts[index], index);
-                            },
-                          ),
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
-                    : _gezginler.isEmpty
-                        ? const Center(child: Text("Gezgin bulunamadı", style: TextStyle(color: Colors.white54)))
-                        : GridView.builder(
-                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3, // Yatayda 3 öğe göster
-                              crossAxisSpacing: 10, // Yatayda öğeler arasındaki boşluk
-                              mainAxisSpacing: 10, // Dikeyde öğeler arasındaki boşluk
+                StreamBuilder<QuerySnapshot>(
+                  stream: _firestore
+                      .collection('chats')
+                      .where('users', arrayContains: currentUser.id)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return const Center(child: Text("Sohbetler yüklenemedi.", style: TextStyle(color: Colors.white54)));
+                    }
+
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: Colors.redAccent));
+                    }
+
+                    final docs = snapshot.data?.docs ?? [];
+                    if (docs.isEmpty) {
+                      return const Center(child: Text("Mesaj bulunamadı", style: TextStyle(color: Colors.white54)));
+                    }
+
+                    // In-memory sorting by lastMessageTime descending
+                    final sortedDocs = List<QueryDocumentSnapshot>.from(docs);
+                    sortedDocs.sort((a, b) {
+                      final aData = a.data() as Map<String, dynamic>;
+                      final bData = b.data() as Map<String, dynamic>;
+                      final aTime = aData['lastMessageTime'] as Timestamp?;
+                      final bTime = bData['lastMessageTime'] as Timestamp?;
+                      if (aTime == null && bTime == null) return 0;
+                      if (aTime == null) return 1;
+                      if (bTime == null) return -1;
+                      return bTime.compareTo(aTime); // descending
+                    });
+
+                    // Search filtering for active chats
+                    final filteredDocs = sortedDocs.where((doc) {
+                      if (_searchQuery.isEmpty) return true;
+                      final data = doc.data() as Map<String, dynamic>;
+                      final usersList = List<String>.from(data['users'] ?? []);
+                      final otherUserId = usersList.firstWhere((id) => id != currentUser.id, orElse: () => '');
+                      final otherUser = _preseedUserMap[otherUserId];
+                      if (otherUser == null) return false;
+                      final query = _searchQuery.toLowerCase();
+                      return otherUser.name.toLowerCase().contains(query) ||
+                             otherUser.city.toLowerCase().contains(query);
+                    }).toList();
+
+                    if (filteredDocs.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.sentiment_dissatisfied_rounded, color: Colors.white24, size: 64),
+                            const SizedBox(height: 12),
+                            Text(
+                              "Aradığınız kriterde bir sohbet bulunamadı 🏔️",
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.5),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                            itemCount: _gezginler.length,
-                            itemBuilder: (context, index) {
-                              return _buildAcceptedRequestItem(context, _gezginler[index], index);
-                            },
-                          )
+                          ],
+                        ),
+                      );
+                    }
+
+                    return ListView.builder(
+                      itemCount: filteredDocs.length,
+                      itemBuilder: (context, index) {
+                        final doc = filteredDocs[index];
+                        final data = doc.data() as Map<String, dynamic>;
+                        final usersList = List<String>.from(data['users'] ?? []);
+                        final otherUserId = usersList.firstWhere((id) => id != currentUser.id, orElse: () => '');
+                        
+                        final otherUser = _preseedUserMap[otherUserId] ?? UserModel(
+                          id: otherUserId,
+                          name: 'Gezgin',
+                          email: '',
+                          city: '',
+                        );
+
+                        final lastMessage = (data['lastMessage'] ?? '') as String;
+                        final lastMessageTime = data['lastMessageTime'] as Timestamp?;
+                        String timeStr = '';
+                        if (lastMessageTime != null) {
+                          final dt = lastMessageTime.toDate();
+                          final now = DateTime.now();
+                          final diff = now.difference(dt);
+                          if (diff.inDays == 0 && now.day == dt.day) {
+                            timeStr = '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+                          } else if (diff.inDays == 1 || (diff.inDays == 0 && now.day != dt.day)) {
+                            timeStr = 'Dün';
+                          } else {
+                            timeStr = '${dt.day}/${dt.month}/${dt.year}';
+                          }
+                        }
+
+                        final isRead = (data['isRead_${currentUser.id}'] ?? true) as bool;
+
+                        return _buildMessageCard(
+                          context,
+                          otherUser,
+                          lastMessage,
+                          timeStr,
+                          isRead,
+                          doc.id,
+                          currentUser.id,
+                        );
+                      },
+                    );
+                  },
+                ),
+                _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Colors.redAccent))
+                    : (() {
+                        final filteredGezginler = _gezginler.where((user) {
+                          if (_searchQuery.isEmpty) return true;
+                          final query = _searchQuery.toLowerCase();
+                          return user.name.toLowerCase().contains(query) ||
+                                 user.city.toLowerCase().contains(query);
+                        }).toList();
+
+                        if (filteredGezginler.isEmpty) {
+                          return Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.sentiment_dissatisfied_rounded, color: Colors.white24, size: 64),
+                                const SizedBox(height: 12),
+                                Text(
+                                  "Aradığınız kriterde bir gezgin bulunamadı 🏔️",
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+
+                        return GridView.builder(
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 10,
+                            mainAxisSpacing: 10,
+                          ),
+                          itemCount: filteredGezginler.length,
+                          itemBuilder: (context, index) {
+                            return _buildAcceptedRequestItem(context, filteredGezginler[index], index);
+                          },
+                        );
+                      })()
               ],
             ),
           ),
@@ -313,7 +607,7 @@ class _MessagesPageState extends State<MessagesPage>
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 5),
         decoration: BoxDecoration(
-          color: Colors.grey[900], // Kart arka planını gri tonlarında yap
+          color: Colors.grey[900],
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
@@ -342,59 +636,92 @@ class _MessagesPageState extends State<MessagesPage>
     );
   }
 
-  Widget _buildMessageCard(BuildContext context, UserModel user, int index) {
-    final personName = user.name;
-    final lastMessage = _mockMessages[index % _mockMessages.length];
-    final messageTime = _mockTimes[index % _mockTimes.length];
-    final newMessageCount = index % 3 == 0 ? 1 : 0; // Uydurma yeni mesaj sayısı
+  Widget _buildMessageCard(
+    BuildContext context,
+    UserModel otherUser,
+    String lastMessage,
+    String timeStr,
+    bool isRead,
+    String chatId,
+    String currentUserId,
+  ) {
+    return Dismissible(
+      key: Key(chatId),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        color: Colors.redAccent,
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        color: Colors.redAccent,
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      confirmDismiss: (direction) async {
+        return await _showDeleteConfirmationDialog(context, chatId);
+      },
+      onDismissed: (direction) {
+        _deleteChat(chatId);
+      },
+      child: Card(
+        margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+        color: Colors.grey[900],
+        child: ListTile(
+          onTap: () {
+            // Sohbeti okundu olarak işaretle
+            _firestore.collection('chats').doc(chatId).update({
+              'isRead_$currentUserId': true,
+            });
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
-      color: Colors.grey[900], // Kart arka planını gri tonlarında yap
-      child: ListTile(
-        leading: _buildProfileImage(photoUrl: user.photoUrl, radius: 20),
-        title: Text(
-          user.city.isNotEmpty ? "$personName - ${user.city}" : personName,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold), // Başlık rengini beyaz yap
-        ),
-        subtitle: Text(
-          lastMessage,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Text(
-              messageTime,
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
-            ),
-            if (newMessageCount > 0) ...[
-              const SizedBox(height: 4),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '$newMessageCount',
-                  style: const TextStyle(color: Colors.white, fontSize: 11),
-                ),
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ChatPage(receiverUser: otherUser),
               ),
+            );
+          },
+          onLongPress: () async {
+            final confirm = await _showDeleteConfirmationDialog(context, chatId);
+            if (confirm == true) {
+              await _deleteChat(chatId);
+            }
+          },
+          leading: _buildProfileImage(photoUrl: otherUser.photoUrl, radius: 20),
+          title: Text(
+            otherUser.city.isNotEmpty ? "${otherUser.name} - ${otherUser.city}" : otherUser.name,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          subtitle: Text(
+            lastMessage.isNotEmpty ? lastMessage : "(Sohbet henüz başlatılmadı)",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                timeStr,
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+              ),
+              if (!isRead) ...[
+                const SizedBox(height: 6),
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Colors.redAccent,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ChatPage(personName: personName),
-            ),
-          );
-        },
       ),
     );
   }

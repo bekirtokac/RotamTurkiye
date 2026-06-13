@@ -94,13 +94,14 @@ class _CustomInputState extends State<CustomInput> {
         return TextField(
           obscureText: widget.isPassword,
           controller: _textController,
-          style: TextStyle(color: Colors.white),
+          onChanged: widget.onChanged,
+          style: const TextStyle(color: Colors.white),
           keyboardType: widget.isNumber == true
               ? TextInputType.number
               : TextInputType.text,
           decoration: InputDecoration(
             hintText: widget.hintText,
-            hintStyle: TextStyle(color: Color(0xFFc1c1c1)),
+            hintStyle: const TextStyle(color: Color(0xFFc1c1c1)),
             border: InputBorder.none,
           ),
         );

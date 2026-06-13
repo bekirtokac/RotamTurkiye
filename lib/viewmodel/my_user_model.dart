@@ -118,6 +118,17 @@ class MyUserModel with ChangeNotifier implements AuthBase {
     }
   }
 
+  Future<void> reloadUser() async {
+    if (_user != null) {
+      try {
+        _user = await _firestoreDBService.readUser(_user!.id);
+        notifyListeners();
+      } catch (e) {
+        print("Error reloading user: $e");
+      }
+    }
+  }
+
   Future<bool> saveUserDetails(String userId, String name, String city) async {
     try {
       state = ViewState.Busy;

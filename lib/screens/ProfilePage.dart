@@ -6,9 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:rotam_turkiye/locator.dart';
+import 'package:rotam_turkiye/model/UserModel.dart';
 import 'package:rotam_turkiye/services/firestore_db_service.dart';
 import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
 import 'package:rotam_turkiye/widgets/VisitedPlaceList.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,9 +21,14 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   bool _isUpdatingProfile = false;
-  bool _isUpdatingPhoto = false;
+  final bool _isUpdatingPhoto = false;
+  bool _isLoading = false;
+  String? _localPhotoPath; // Firebase bypass: seçilen resmin yerel yolu
   final ImagePicker _imagePicker = ImagePicker();
   final FirestoreDBService _dbService = locator<FirestoreDBService>();
+
+  UserModel? get _currentUser =>
+      Provider.of<MyUserModel>(context, listen: false).user;
 
   // Firestore stream
   StreamSubscription<QuerySnapshot>? _visitedCitiesSubscription;
@@ -35,6 +42,7 @@ class _ProfilePageState extends State<ProfilePage> {
     // Kullanıcı verisi yüklendikten sonra stream'i başlat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startListeningVisitedCities();
+      _loadLocalPhotoPath(); // SharedPreferences'tan kaydedilmiş fotoğrafı yükle
     });
   }
 
@@ -42,6 +50,30 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _visitedCitiesSubscription?.cancel();
     super.dispose();
+  }
+
+  /// SharedPreferences'tan daha önce seçilmiş profil fotoğrafı yolunu okur.
+  /// Dosya hala diskette duruyorsa state'e atar; yoksa kaydı temizler.
+  Future<void> _loadLocalPhotoPath() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final String? saved = prefs.getString('local_profile_image_path');
+      if (saved != null && saved.isNotEmpty) {
+        final bool stillExists = await File(saved).exists();
+        if (stillExists) {
+          if (mounted) {
+            setState(() {
+              _localPhotoPath = saved;
+            });
+          }
+        } else {
+          // Dosya silindi veya taşındı — kaydı temizle
+          await prefs.remove('local_profile_image_path');
+        }
+      }
+    } catch (e) {
+      print('SharedPreferences okuma hatası: $e');
+    }
   }
 
   Future<void> _loadUserRank(String userId, int score) async {
@@ -107,7 +139,6 @@ class _ProfilePageState extends State<ProfilePage> {
     });
   }
 
-
   /// DD/MM/YYYY formatındaki string'i DateTime'a parse eder.
   DateTime? _parseDate(String dateStr) {
     try {
@@ -125,19 +156,87 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ─── 81 İl Listesi ───
   static const List<String> _turkishCities = [
-    'Adana', 'Adıyaman', 'Afyonkarahisar', 'Ağrı', 'Amasya', 'Ankara',
-    'Antalya', 'Artvin', 'Aydın', 'Balıkesir', 'Bilecik', 'Bingöl',
-    'Bitlis', 'Bolu', 'Burdur', 'Bursa', 'Çanakkale', 'Çankırı', 'Çorum',
-    'Denizli', 'Diyarbakır', 'Edirne', 'Elazığ', 'Erzincan', 'Erzurum',
-    'Eskişehir', 'Gaziantep', 'Giresun', 'Gümüşhane', 'Hakkari', 'Hatay',
-    'Isparta', 'Mersin', 'İstanbul', 'İzmir', 'Kars', 'Kastamonu',
-    'Kayseri', 'Kırklareli', 'Kırşehir', 'Kocaeli', 'Konya', 'Kütahya',
-    'Malatya', 'Manisa', 'Kahramanmaraş', 'Mardin', 'Muğla', 'Muş',
-    'Nevşehir', 'Niğde', 'Ordu', 'Rize', 'Sakarya', 'Samsun', 'Siirt',
-    'Sinop', 'Sivas', 'Tekirdağ', 'Tokat', 'Trabzon', 'Tunceli',
-    'Şanlıurfa', 'Uşak', 'Van', 'Yozgat', 'Zonguldak', 'Aksaray',
-    'Bayburt', 'Karaman', 'Kırıkkale', 'Batman', 'Şırnak', 'Bartın',
-    'Ardahan', 'Iğdır', 'Yalova', 'Karabük', 'Kilis', 'Osmaniye', 'Düzce',
+    'Adana',
+    'Adıyaman',
+    'Afyonkarahisar',
+    'Ağrı',
+    'Amasya',
+    'Ankara',
+    'Antalya',
+    'Artvin',
+    'Aydın',
+    'Balıkesir',
+    'Bilecik',
+    'Bingöl',
+    'Bitlis',
+    'Bolu',
+    'Burdur',
+    'Bursa',
+    'Çanakkale',
+    'Çankırı',
+    'Çorum',
+    'Denizli',
+    'Diyarbakır',
+    'Edirne',
+    'Elazığ',
+    'Erzincan',
+    'Erzurum',
+    'Eskişehir',
+    'Gaziantep',
+    'Giresun',
+    'Gümüşhane',
+    'Hakkari',
+    'Hatay',
+    'Isparta',
+    'Mersin',
+    'İstanbul',
+    'İzmir',
+    'Kars',
+    'Kastamonu',
+    'Kayseri',
+    'Kırklareli',
+    'Kırşehir',
+    'Kocaeli',
+    'Konya',
+    'Kütahya',
+    'Malatya',
+    'Manisa',
+    'Kahramanmaraş',
+    'Mardin',
+    'Muğla',
+    'Muş',
+    'Nevşehir',
+    'Niğde',
+    'Ordu',
+    'Rize',
+    'Sakarya',
+    'Samsun',
+    'Siirt',
+    'Sinop',
+    'Sivas',
+    'Tekirdağ',
+    'Tokat',
+    'Trabzon',
+    'Tunceli',
+    'Şanlıurfa',
+    'Uşak',
+    'Van',
+    'Yozgat',
+    'Zonguldak',
+    'Aksaray',
+    'Bayburt',
+    'Karaman',
+    'Kırıkkale',
+    'Batman',
+    'Şırnak',
+    'Bartın',
+    'Ardahan',
+    'Iğdır',
+    'Yalova',
+    'Karabük',
+    'Kilis',
+    'Osmaniye',
+    'Düzce',
   ];
 
   // ─── Çıkış ───
@@ -148,6 +247,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ─── Profil Fotoğrafı ───
   ImageProvider? _profileImageProvider(String? photoUrl) {
+    // Öncelik: yerel dosya (Firebase bypass modu)
+    if (_localPhotoPath != null && _localPhotoPath!.isNotEmpty) {
+      return FileImage(File(_localPhotoPath!));
+    }
     if (photoUrl == null || photoUrl.isEmpty) return null;
     if (photoUrl.startsWith('http')) return NetworkImage(photoUrl);
     if (photoUrl.startsWith('assets/')) return AssetImage(photoUrl);
@@ -167,38 +270,224 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
 
-    final pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85,
-      maxWidth: 1024,
-    );
-
-    if (pickedFile == null || !mounted) return;
-
-    setState(() => _isUpdatingPhoto = true);
-    final isSaved =
-        await userModel.updateProfilePhoto(File(pickedFile.path));
-    if (!mounted) return;
-    setState(() => _isUpdatingPhoto = false);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          isSaved
-              ? "Profil fotoğrafı güncellendi."
-              : "Fotoğraf yüklenirken hata oluştu.",
-        ),
-        backgroundColor: isSaved ? Colors.green : Colors.redAccent,
+    await showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1E1E1E),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(
+                  child: SizedBox(
+                    width: 50,
+                    child: Divider(thickness: 4, color: Colors.white24),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Fotoğrafı Değiştir",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_rounded,
+                      color: Colors.redAccent, size: 26),
+                  title: const Text(
+                    "Galeriden Seç",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _pickAndProcessImage(ImageSource.gallery);
+                  },
+                ),
+                const Divider(color: Colors.white10),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded,
+                      color: Colors.redAccent, size: 26),
+                  title: const Text(
+                    "Kamera ile Çek",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _pickAndProcessImage(ImageSource.camera);
+                  },
+                ),
+                const Divider(color: Colors.white10),
+                ListTile(
+                  leading: const Icon(Icons.folder_open_rounded,
+                      color: Colors.redAccent, size: 26),
+                  title: const Text(
+                    "Dosyalardan Seç",
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500),
+                  ),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _pickAndProcessImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildProfileAvatar(String? photoUrl) {
+  Future<void> _pickAndProcessImage(ImageSource source) async {
+    XFile? image;
+    try {
+      image = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1024,
+      );
+    } catch (e) {
+      print("ImagePicker error: $e");
+    }
+
+    if (image == null || image.path.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Fotoğraf seçilmedi veya geçersiz dosya yolu."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    final File imageFile = File(image.path);
+    try {
+      final bool fileExists = await imageFile.exists();
+      if (!fileExists) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text("Seçilen fotoğraf dosyası yerel diskte bulunamadı."),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      print("Error checking if file exists: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Dosya kontrolü sırasında hata oluştu: $e"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      return;
+    }
+
+    await _updateProfilePicture(image.path);
+  }
+
+  /// Firebase Storage BYPASS — tamamen yerel (offline) çalışır.
+  /// Seçilen resim sadece cihaz hafızasından gösterilir,
+  /// sunucuya hiçbir istek atılmaz.
+  Future<void> _updateProfilePicture(String localPath) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+
+      // Dosyanın gerçekten okunabilir olduğunu doğrula
+      final File file = File(localPath);
+      final bool exists = await file.exists();
+      if (!exists) {
+        throw Exception("Dosya bulunamadı: $localPath");
+      }
+
+      // Yerel yolu state'e aktar — UI anında güncellenir
+      setState(() {
+        _localPhotoPath = localPath;
+        _isLoading = false;
+      });
+
+      // SharedPreferences'a kalıcı olarak mühürle
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('local_profile_image_path', localPath);
+      print('LOKAL FOTOĞRAF HAFIZAYA KAYDEDILDI: $localPath');
+
+      // TODO: Firebase Storage planı aktive edildiğinde aşağıdaki blok
+      // yorum satırından çıkarılacak:
+      //
+      // final storageRef = FirebaseStorage.instance
+      //     .ref()
+      //     .child("profile_images")
+      //     .child("${_currentUser?.id ?? 'user'}.jpg");
+      // final Uint8List bytes = await file.readAsBytes();
+      // await storageRef.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+      // final String newDownloadUrl = await storageRef.getDownloadURL();
+      // await FirebaseFirestore.instance
+      //     .collection('users')
+      //     .doc(_currentUser?.id)
+      //     .update({'photoUrl': newDownloadUrl});
+      // if (mounted) {
+      //   final userModel = Provider.of<MyUserModel>(context, listen: false);
+      //   await userModel.reloadUser();
+      // }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Profil fotoğrafı güncellendi! 🎉'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        print("LOKAL FOTOĞRAF HATASI: ${e.toString()}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Fotoğraf yüklenemedi: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildProfileAvatar(String? photoUrl, bool isModelBusy) {
     const double radius = 100;
+    // _localPhotoPath doluysa FileImage, yoksa network/asset URL'i kullan
     final imageProvider = _profileImageProvider(photoUrl);
+    final bool showLoading = _isUpdatingPhoto || _isLoading || isModelBusy;
 
     return GestureDetector(
-      onTap: _isUpdatingPhoto ? null : () => _pickAndUploadProfilePhoto(context),
+      onTap: showLoading ? null : () => _pickAndUploadProfilePhoto(context),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -210,11 +499,11 @@ class _ProfilePageState extends State<ProfilePage> {
                 ? const Icon(Icons.person, size: 80, color: Colors.white54)
                 : null,
           ),
-          if (_isUpdatingPhoto)
+          if (showLoading)
             Container(
               width: radius * 2,
               height: radius * 2,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.black54,
                 shape: BoxShape.circle,
               ),
@@ -241,7 +530,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: Icon(
                 Icons.camera_alt_rounded,
                 color: Colors.black87,
-                size: _isUpdatingPhoto ? 0 : 22,
+                size: showLoading ? 0 : 22,
               ),
             ),
           ),
@@ -391,7 +680,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Güncelleme sırasında hata oluştu."),
+                                content:
+                                    Text("Güncelleme sırasında hata oluştu."),
                                 backgroundColor: Colors.redAccent,
                               ),
                             );
@@ -404,7 +694,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.save_alt_rounded),
-                  label: Text(_isUpdatingProfile ? "Kaydediliyor..." : "Kaydet"),
+                  label:
+                      Text(_isUpdatingProfile ? "Kaydediliyor..." : "Kaydet"),
                 ),
               ),
             ],
@@ -614,8 +905,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               if (days == null || days <= 0) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
-                                        "Geçerli bir gün sayısı girin."),
+                                    content:
+                                        Text("Geçerli bir gün sayısı girin."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -624,8 +915,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               if (dateController.text.trim().isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text("Lütfen bir tarih seçin."),
+                                    content: Text("Lütfen bir tarih seçin."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -634,8 +924,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               setSheetState(() => isSaving = true);
 
-                              final success =
-                                  await _dbService.addVisitedCity(
+                              final success = await _dbService.addVisitedCity(
                                 currentUser.id,
                                 selectedCity!,
                                 days,
@@ -658,8 +947,8 @@ class _ProfilePageState extends State<ProfilePage> {
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
-                                        "Kayıt sırasında hata oluştu."),
+                                    content:
+                                        Text("Kayıt sırasında hata oluştu."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -675,8 +964,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             )
                           : const Icon(Icons.check_rounded),
-                      label:
-                          Text(isSaving ? "Kaydediliyor..." : "Kaydet"),
+                      label: Text(isSaving ? "Kaydediliyor..." : "Kaydet"),
                     ),
                   ),
                 ],
@@ -699,9 +987,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(success
-            ? "Kayıt silindi."
-            : "Silme sırasında hata oluştu."),
+        content:
+            Text(success ? "Kayıt silindi." : "Silme sırasında hata oluştu."),
         backgroundColor: success ? Colors.green : Colors.redAccent,
       ),
     );
@@ -740,7 +1027,7 @@ class _ProfilePageState extends State<ProfilePage> {
               style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.8), fontSize: 15),
               children: [
-                const TextSpan(text: "\"" ),
+                const TextSpan(text: "\""),
                 TextSpan(
                   text: city,
                   style: const TextStyle(fontWeight: FontWeight.w700),
@@ -756,8 +1043,7 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text(
                 "İptal",
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6)),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
               ),
             ),
             ElevatedButton.icon(
@@ -810,7 +1096,8 @@ class _ProfilePageState extends State<ProfilePage> {
     final currentDays = (trip['spent_day'] ?? 0) as int;
     final currentDate = (trip['date'] ?? '') as String;
 
-    String? selectedCity = _turkishCities.contains(currentCity) ? currentCity : null;
+    String? selectedCity =
+        _turkishCities.contains(currentCity) ? currentCity : null;
     final daysController =
         TextEditingController(text: currentDays > 0 ? '$currentDays' : '');
     final dateController = TextEditingController(text: currentDate);
@@ -831,8 +1118,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom:
-                    MediaQuery.of(sheetContext).viewInsets.bottom + 24,
+                bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 24,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -842,8 +1128,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const Center(
                     child: SizedBox(
                       width: 50,
-                      child:
-                          Divider(thickness: 4, color: Colors.white24),
+                      child: Divider(thickness: 4, color: Colors.white24),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -869,14 +1154,11 @@ class _ProfilePageState extends State<ProfilePage> {
                   DropdownButtonFormField<String>(
                     initialValue: selectedCity,
                     dropdownColor: const Color(0xFF2A2A2A),
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 16),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
                       labelText: "Şehir İsmi",
-                      labelStyle:
-                          const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(
-                          Icons.location_city_rounded,
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.location_city_rounded,
                           color: Colors.white54),
                       filled: true,
                       fillColor: Colors.white10,
@@ -906,10 +1188,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
                       labelText: "Kaldığı Gün Sayısı",
-                      labelStyle:
-                          const TextStyle(color: Colors.white70),
-                      prefixIcon: const Icon(
-                          Icons.nights_stay_rounded,
+                      labelStyle: const TextStyle(color: Colors.white70),
+                      prefixIcon: const Icon(Icons.nights_stay_rounded,
                           color: Colors.white54),
                       filled: true,
                       fillColor: Colors.white10,
@@ -926,8 +1206,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     onTap: () async {
                       final picked = await showDatePicker(
                         context: builderContext,
-                        initialDate: _parseDate(dateController.text) ??
-                            DateTime.now(),
+                        initialDate:
+                            _parseDate(dateController.text) ?? DateTime.now(),
                         firstDate: DateTime(2000),
                         lastDate: DateTime(2101),
                         builder: (ctx, child) {
@@ -955,10 +1235,8 @@ class _ProfilePageState extends State<ProfilePage> {
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
                           labelText: "Tarih",
-                          labelStyle:
-                              const TextStyle(color: Colors.white70),
-                          prefixIcon: const Icon(
-                              Icons.calendar_month_rounded,
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          prefixIcon: const Icon(Icons.calendar_month_rounded,
                               color: Colors.white54),
                           filled: true,
                           fillColor: Colors.white10,
@@ -979,8 +1257,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.orangeAccent,
                         foregroundColor: Colors.black,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),
@@ -990,35 +1267,30 @@ class _ProfilePageState extends State<ProfilePage> {
                           : () async {
                               if (selectedCity == null ||
                                   selectedCity!.isEmpty) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content:
-                                        Text("Lütfen bir şehir seçin."),
+                                    content: Text("Lütfen bir şehir seçin."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
                                 return;
                               }
-                              final days = int.tryParse(
-                                  daysController.text.trim());
+                              final days =
+                                  int.tryParse(daysController.text.trim());
                               if (days == null || days <= 0) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
-                                        "Geçerli bir gün sayısı girin."),
+                                    content:
+                                        Text("Geçerli bir gün sayısı girin."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
                                 return;
                               }
                               if (dateController.text.trim().isEmpty) {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
-                                        "Lütfen bir tarih seçin."),
+                                    content: Text("Lütfen bir tarih seçin."),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -1041,17 +1313,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               if (success) {
                                 Navigator.of(sheetContext).pop();
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
-                                    content: Text(
-                                        "Plan başarıyla güncellendi!"),
+                                    content:
+                                        Text("Plan başarıyla güncellendi!"),
                                     backgroundColor: Colors.green,
                                   ),
                                 );
                               } else {
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
+                                ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
                                         "Güncelleme sırasında hata oluştu."),
@@ -1070,8 +1340,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                             )
                           : const Icon(Icons.update_rounded),
-                      label: Text(
-                          isUpdating ? "Güncelleniyor..." : "Güncelle"),
+                      label: Text(isUpdating ? "Güncelleniyor..." : "Güncelle"),
                     ),
                   ),
                 ],
@@ -1114,8 +1383,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15)),
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.15)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1376,50 +1645,17 @@ class _ProfilePageState extends State<ProfilePage> {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 8),
-            _buildProfileAvatar(user?.photoUrl),
+            _buildProfileAvatar(
+                user?.photoUrl, userModel.state == ViewState.Busy),
             const SizedBox(height: 20),
-            Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Text(
-                  user?.name ?? "İsimsiz Kullanıcı",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (_userRank != null)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF1C40F), Color(0xFFF39C12)],
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFF39C12).withOpacity(0.3),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      "Zirve #$_userRank",
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
+            Text(
+              user?.name ?? "İsimsiz Kullanıcı",
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-
             const SizedBox(height: 10),
             Text(
               user?.city ?? "Şehir belirtilmemiş",
@@ -1429,23 +1665,98 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white12,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Colors.white24),
-                ),
-              ),
-              onPressed: () => _openEditProfileBottomSheet(context),
-              icon: const Icon(Icons.edit_rounded),
-              label: const Text(
-                "Profili Düzenle",
-                style: TextStyle(fontWeight: FontWeight.w600),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  // 1. ELEMAN: ZİRVE ROZETİ (SOLDA)
+                  Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      height: 50,
+                      decoration: BoxDecoration(
+                        gradient: _userRank != null
+                            ? const LinearGradient(
+                                colors: [Color(0xFFF1C40F), Color(0xFFF39C12)],
+                              )
+                            : const LinearGradient(
+                                colors: [Colors.white12, Colors.white12],
+                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: _userRank != null
+                            ? Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1)
+                            : Border.all(color: Colors.white24, width: 1),
+                        boxShadow: _userRank != null
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFFF39C12)
+                                      .withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.emoji_events_rounded,
+                            color: _userRank != null
+                                ? Colors.black
+                                : Colors.white54,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _userRank != null
+                                ? "Zirve #$_userRank"
+                                : "Zirve #--",
+                            style: TextStyle(
+                              color: _userRank != null
+                                  ? Colors.black
+                                  : Colors.white70,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // 2. ELEMAN: PROFİLİ DÜZENLE (SAĞDA)
+                  Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white12,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: const BorderSide(color: Colors.white24),
+                          ),
+                        ),
+                        onPressed: () => _openEditProfileBottomSheet(context),
+                        icon: const Icon(Icons.edit_rounded, size: 20),
+                        label: const Text(
+                          "Profili Düzenle",
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 20),
@@ -1455,8 +1766,7 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _buildStatCard(
-                      "Puanlar", "$totalPoints", Icons.star_rounded),
+                  _buildStatCard("Puanlar", "$totalPoints", Icons.star_rounded),
                   _buildStatCard("Gezilen Şehir", "$uniqueCities",
                       Icons.location_city_rounded),
                 ],
@@ -1495,14 +1805,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(height: 8),
                       Text(
                         "Henüz planlanmış rota yok",
-                        style: TextStyle(
-                            color: Colors.white38, fontSize: 15),
+                        style: TextStyle(color: Colors.white38, fontSize: 15),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         "Yeni seyahat oluşturarak rota ekleyebilirsiniz",
-                        style: TextStyle(
-                            color: Colors.white24, fontSize: 12),
+                        style: TextStyle(color: Colors.white24, fontSize: 12),
                       ),
                     ],
                   ),
