@@ -9,6 +9,7 @@ import 'package:rotam_turkiye/locator.dart';
 import 'package:rotam_turkiye/model/UserModel.dart';
 import 'package:rotam_turkiye/services/firestore_db_service.dart';
 import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
+import 'package:rotam_turkiye/pages/MyTravelBookPage.dart';
 import 'package:rotam_turkiye/widgets/VisitedPlaceList.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -1635,6 +1636,16 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.collections_bookmark_rounded, color: Colors.white),
+            tooltip: 'Seyahat Defterim',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyTravelBookPage()),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.exit_to_app, color: Colors.white),
             onPressed: () => _signOut(context),
           ),
@@ -1820,7 +1831,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ...List.generate(_futureTrips.length, (index) {
                 return _buildPlannedTripCard(_futureTrips[index]);
               }),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
           ],
         ),
       ),

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -45,15 +44,6 @@ class Post extends StatefulWidget {
 }
 
 class _PostState extends State<Post> {
-  // ─── Like State ──────────────────────────────────────────────────────────
-  bool _isLiked = false;
-  late int _likeCount;
-
-  @override
-  void initState() {
-    super.initState();
-    _likeCount = 10 + Random().nextInt(141);
-  }
 
   // ─── Yardımcı: URL tipi ────────────────────────────────────────────────
   bool _isLocalPath(String url) =>
@@ -162,42 +152,90 @@ class _PostState extends State<Post> {
 
   // ─── Beğeni Butonu ────────────────────────────────────────────────────
   Widget _buildLikeButton() {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _isLiked ? _likeCount-- : _likeCount++;
-          _isLiked = !_isLiked;
-        });
-      },
-      child: Column(
+    final myUserModel = Provider.of<MyUserModel>(context, listen: false);
+    final activeUserId = widget.currentUserId.isNotEmpty
+        ? widget.currentUserId
+        : (myUserModel.user?.id ?? '');
+
+    if (activeUserId.isEmpty) {
+      return const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            transitionBuilder: (child, animation) =>
-                ScaleTransition(scale: animation, child: child),
-            child: Icon(
-              _isLiked ? Icons.favorite : Icons.favorite_border,
-              key: ValueKey(_isLiked),
-              color: _isLiked ? Colors.redAccent : Colors.white54,
-              size: 26,
-            ),
+          Icon(
+            Icons.favorite_border,
+            color: Colors.white54,
+            size: 26,
           ),
-          const SizedBox(height: 3),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: Text(
-              _likeCount.toString(),
-              key: ValueKey(_likeCount),
-              style: TextStyle(
-                color: _isLiked ? Colors.redAccent : Colors.white38,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+          SizedBox(height: 3),
+          Text(
+            "0",
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
-      ),
+      );
+    }
+
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('posts')
+          .doc(widget.postId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final List<dynamic> likes = data != null && data['likes'] != null
+            ? data['likes'] as List<dynamic>
+            : [];
+        final bool isLiked = likes.contains(activeUserId);
+        final int likeCount = likes.length;
+
+        return GestureDetector(
+          onTap: () async {
+            final docRef = FirebaseFirestore.instance.collection('posts').doc(widget.postId);
+            if (isLiked) {
+              await docRef.update({
+                'likes': FieldValue.arrayRemove([activeUserId]),
+              });
+            } else {
+              await docRef.update({
+                'likes': FieldValue.arrayUnion([activeUserId]),
+              });
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                transitionBuilder: (child, animation) =>
+                    ScaleTransition(scale: animation, child: child),
+                child: Icon(
+                  isLiked ? Icons.favorite : Icons.favorite_border,
+                  key: ValueKey(isLiked),
+                  color: isLiked ? Colors.redAccent : Colors.white54,
+                  size: 26,
+                ),
+              ),
+              const SizedBox(height: 3),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: Text(
+                  likeCount.toString(),
+                  key: ValueKey(likeCount),
+                  style: TextStyle(
+                    color: isLiked ? Colors.redAccent : Colors.white38,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

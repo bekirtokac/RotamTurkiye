@@ -4,7 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:rotam_turkiye/model/UserModel.dart';
 import 'package:rotam_turkiye/screens/ChatPage.dart';
 import 'package:rotam_turkiye/screens/PublicProfilePage.dart';
-import 'package:rotam_turkiye/screens/MapPage.dart';
+import 'package:rotam_turkiye/pages/WhereToStayPage.dart';
 import 'package:rotam_turkiye/screens/AlertsPage.dart';
 import 'package:rotam_turkiye/screens/TravelCompanionsPage.dart';
 import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
@@ -75,7 +75,7 @@ class _SearchPageState extends State<SearchPage> {
     await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const MapPage(),
+        builder: (context) => const WhereToStayPage(),
       ),
     );
     if (!mounted) return;
