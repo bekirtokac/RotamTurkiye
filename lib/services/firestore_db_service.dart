@@ -205,6 +205,52 @@ class FirestoreDBService implements DBBase, TripBase {
       return 1;
     }
   }
+
+  /// Kullanıcının planned_routes koleksiyonunu stream olarak dinler.
+  Stream<QuerySnapshot> getPlannedRoutes(String userId) {
+    return _firebaseDB
+        .collection("users")
+        .doc(userId)
+        .collection("planned_routes")
+        .snapshots();
+  }
+
+  /// Planlanan seyahat rotasını siler.
+  Future<bool> deletePlannedRoute(String userId, String docId) async {
+    try {
+      await _firebaseDB
+          .collection("users")
+          .doc(userId)
+          .collection("planned_routes")
+          .doc(docId)
+          .delete();
+      return true;
+    } catch (e) {
+      print("Planlanan rota silinirken hata oluştu: $e");
+      return false;
+    }
+  }
+
+  /// Planlanan seyahat rotasını günceller.
+  Future<bool> updatePlannedRoute(
+      String userId, String docId, String city, int spentDay, String date) async {
+    try {
+      await _firebaseDB
+          .collection("users")
+          .doc(userId)
+          .collection("planned_routes")
+          .doc(docId)
+          .update({
+        'city': city,
+        'days': spentDay,
+        'date': date,
+      });
+      return true;
+    } catch (e) {
+      print("Planlanan rota güncellenirken hata oluştu: $e");
+      return false;
+    }
+  }
 }
 
 

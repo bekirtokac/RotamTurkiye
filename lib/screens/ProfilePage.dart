@@ -12,6 +12,8 @@ import 'package:rotam_turkiye/viewmodel/my_user_model.dart';
 import 'package:rotam_turkiye/pages/MyTravelBookPage.dart';
 import 'package:rotam_turkiye/widgets/VisitedPlaceList.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rotam_turkiye/screens/LoginPage.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -33,7 +35,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // Firestore stream
   StreamSubscription<QuerySnapshot>? _visitedCitiesSubscription;
+  StreamSubscription<QuerySnapshot>? _plannedRoutesSubscription;
   List<Map<String, dynamic>> _pastTrips = [];
+  List<Map<String, dynamic>> _legacyFutureTrips = [];
+  List<Map<String, dynamic>> _newFutureTrips = [];
   List<Map<String, dynamic>> _futureTrips = [];
   int? _userRank;
 
@@ -43,6 +48,7 @@ class _ProfilePageState extends State<ProfilePage> {
     // Kullanıcı verisi yüklendikten sonra stream'i başlat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startListeningVisitedCities();
+      _startListeningPlannedRoutes();
       _loadLocalPhotoPath(); // SharedPreferences'tan kaydedilmiş fotoğrafı yükle
     });
   }
@@ -50,6 +56,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void dispose() {
     _visitedCitiesSubscription?.cancel();
+    _plannedRoutesSubscription?.cancel();
     super.dispose();
   }
 
@@ -90,6 +97,31 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  void _startListeningPlannedRoutes() {
+    final userModel = Provider.of<MyUserModel>(context, listen: false);
+    final user = userModel.user;
+    if (user == null) return;
+
+    _plannedRoutesSubscription =
+        _dbService.getPlannedRoutes(user.id).listen((snapshot) {
+      if (!mounted) return;
+
+      final routes = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        return {
+          ...data,
+          'docId': doc.id,
+          'isPlannedRoute': true,
+        };
+      }).toList();
+
+      setState(() {
+        _newFutureTrips = routes;
+        _futureTrips = [..._legacyFutureTrips, ..._newFutureTrips];
+      });
+    });
+  }
+
   void _startListeningVisitedCities() {
     final userModel = Provider.of<MyUserModel>(context, listen: false);
     final user = userModel.user;
@@ -104,6 +136,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return {
           ...data,
           'docId': doc.id,
+          'isPlannedRoute': false,
         };
       }).toList();
 
@@ -112,13 +145,13 @@ class _ProfilePageState extends State<ProfilePage> {
       final today = DateTime(now.year, now.month, now.day);
 
       final List<Map<String, dynamic>> past = [];
-      final List<Map<String, dynamic>> future = [];
+      final List<Map<String, dynamic>> legacyFuture = [];
 
       for (var trip in allTrips) {
         final dateStr = (trip['date'] ?? '') as String;
         final parsedDate = _parseDate(dateStr);
         if (parsedDate != null && parsedDate.isAfter(today)) {
-          future.add(trip);
+          legacyFuture.add(trip);
         } else {
           past.add(trip);
         }
@@ -135,7 +168,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
       setState(() {
         _pastTrips = past;
-        _futureTrips = future;
+        _legacyFutureTrips = legacyFuture;
+        _futureTrips = [..._legacyFutureTrips, ..._newFutureTrips];
       });
     });
   }
@@ -242,8 +276,31 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // ─── Çıkış ───
   void _signOut(BuildContext context) async {
-    final userModel = Provider.of<MyUserModel>(context, listen: false);
-    await userModel.signOut();
+    try {
+      final userModel = Provider.of<MyUserModel>(context, listen: false);
+      await userModel.signOut();
+
+      // Firebase Auth oturumunu kapat
+      await FirebaseAuth.instance.signOut();
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } catch (e) {
+      print("Çıkış hatası yakalandı: $e");
+      try {
+        await FirebaseAuth.instance.signOut();
+      } catch (_) {}
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const LoginPage()),
+          (Route<dynamic> route) => false,
+        );
+      }
+    }
   }
 
   // ─── Profil Fotoğrafı ───
@@ -1070,7 +1127,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = userModel.user;
     if (user == null) return;
 
-    final success = await _dbService.deleteVisitedCity(user.id, docId);
+    final bool isPlannedRoute = trip['isPlannedRoute'] ?? false;
+    final success = isPlannedRoute
+        ? await _dbService.deletePlannedRoute(user.id, docId)
+        : await _dbService.deleteVisitedCity(user.id, docId);
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1094,7 +1154,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (docId == null) return;
 
     final currentCity = (trip['city'] ?? '') as String;
-    final currentDays = (trip['spent_day'] ?? 0) as int;
+    final currentDays = (trip['spent_day'] ?? trip['days'] ?? 0) as int;
     final currentDate = (trip['date'] ?? '') as String;
 
     String? selectedCity =
@@ -1300,14 +1360,22 @@ class _ProfilePageState extends State<ProfilePage> {
 
                               setSheetState(() => isUpdating = true);
 
-                              final success =
-                                  await _dbService.updateVisitedCity(
-                                currentUser.id,
-                                docId,
-                                selectedCity!,
-                                days,
-                                dateController.text.trim(),
-                              );
+                              final bool isPlannedRoute = trip['isPlannedRoute'] ?? false;
+                              final success = isPlannedRoute
+                                  ? await _dbService.updatePlannedRoute(
+                                      currentUser.id,
+                                      docId,
+                                      selectedCity!,
+                                      days,
+                                      dateController.text.trim(),
+                                    )
+                                  : await _dbService.updateVisitedCity(
+                                      currentUser.id,
+                                      docId,
+                                      selectedCity!,
+                                      days,
+                                      dateController.text.trim(),
+                                    );
 
                               if (!context.mounted) return;
                               setSheetState(() => isUpdating = false);
@@ -1415,7 +1483,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildPlannedTripCard(Map<String, dynamic> trip) {
     final city = (trip['city'] ?? 'Bilinmeyen') as String;
     final date = (trip['date'] ?? '') as String;
-    final days = (trip['spent_day'] ?? 0) as int;
+    final days = (trip['spent_day'] ?? trip['days'] ?? 0) as int;
     final budget = trip['budget'];
 
     return Container(
