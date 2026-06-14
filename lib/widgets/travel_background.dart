@@ -11,10 +11,6 @@ class TravelBackground extends StatelessWidget {
 
   const TravelBackground({super.key, required this.child});
 
-  // Gece kamp ateşi & çadır – Unsplash premium telifsiz görsel
-  static const String _imageUrl =
-      'https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?q=80&w=1000';
-
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -23,16 +19,15 @@ class TravelBackground extends StatelessWidget {
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
+              color: const Color(0xFF121212),
               image: DecorationImage(
-                image: const NetworkImage(_imageUrl),
+                image: const AssetImage("assets/images/login_bg.jpg"),
                 fit: BoxFit.cover,
                 // %55 siyah overlay → okunabilirlik sigortası
                 colorFilter: ColorFilter.mode(
                   Colors.black.withValues(alpha: 0.55),
                   BlendMode.srcOver,
                 ),
-                // Görsel yüklenene kadar gösterilecek koyu yedek
-                onError: (_, __) {},
               ),
             ),
             // Görsel yüklenene kadar koyu gradient yedek
